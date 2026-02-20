@@ -1,0 +1,40 @@
+import streamlit as st
+import numpy as np
+import librosa
+import joblib
+
+# Load model and scaler
+model = joblib.load("best_model.pkl")
+scaler = joblib.load("scaler.pkl")
+
+st.set_page_config(page_title="Parkinson's Detection", layout="centered")
+
+st.title("🧠 Parkinson's Disease Detection System")
+st.write("Upload a voice sample (.wav)")
+
+uploaded_file = st.file_uploader("Upload WAV file", type=["wav"])
+
+def extract_features(audio, sr):
+    mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=13)
+    return np.mean(mfcc.T, axis=0)
+
+if uploaded_file is not None:
+    audio, sr = librosa.load(uploaded_file, sr=None)
+    features = extract_features(audio, sr)
+
+    expected_size = scaler.mean_.shape[0]
+
+    if len(features) < expected_size:
+        features = np.pad(features, (0, expected_size - len(features)))
+
+    features_scaled = scaler.transform([features])
+
+    prob = model.predict_proba(features_scaled)[0][1]
+
+    st.subheader("Prediction Result")
+    st.metric("Confidence", f"{round(prob*100,2)}%")
+
+    if prob > 0.5:
+        st.error("⚠ Parkinsonian patterns detected. Please consult a neurologist.")
+    else:
+        st.success("✓ No strong Parkinsonian voice patterns detected.")
